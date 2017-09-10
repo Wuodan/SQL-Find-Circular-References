@@ -62,6 +62,6 @@ create table BillProduct(
 create table BillProductAttribute(
 	id int identity not null primary key,
 	idBillProduct int not null foreign key references BillProduct(id),
-	idProductAttribut int not null foreign key references ProductInHouseHold(id),
+	idProductAttribut int not null foreign key references ProductAttribut(id),
 	value decimal(38, 2) not null
 )
