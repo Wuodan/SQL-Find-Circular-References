@@ -6,89 +6,38 @@ declare @fk_pk table (
 	id int not null identity,
 	PK_schema sysname not null,
 	PK_table sysname not null,
-	PK_column sysname not null,
 	FK_schema sysname not null,
 	FK_table sysname not null,
-	FK_column sysname not null,
 	num bigint not null
 )
 
 insert into @fk_pk(
 	PK_schema,
 	PK_table,
-	PK_column,
 	FK_schema,
 	FK_table,
-	FK_column,
 	num
 )
-select		PK.TABLE_SCHEMA PK_schema,
+select		distinct
+			PK.TABLE_SCHEMA PK_schema,
 			PK.TABLE_NAME PK_table,
-			PT.COLUMN_NAME PK_column,
 			FK.TABLE_SCHEMA FK_schema,
 			FK.TABLE_NAME FK_table,
-			CU.COLUMN_NAME FK_column,
 			row_number() over (partition by PK.TABLE_NAME order by FK.TABLE_NAME) num
-from		INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS C
+from		INFORMATION_SCHEMA.TABLE_CONSTRAINTS PK
+			inner join
+			INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS C
+			on C.UNIQUE_CONSTRAINT_NAME = PK.CONSTRAINT_NAME
 			inner join
 			INFORMATION_SCHEMA.TABLE_CONSTRAINTS FK
 			on C.CONSTRAINT_NAME = FK.CONSTRAINT_NAME
-			inner join
-			INFORMATION_SCHEMA.TABLE_CONSTRAINTS PK
-			on C.UNIQUE_CONSTRAINT_NAME = PK.CONSTRAINT_NAME
-			inner join
-			INFORMATION_SCHEMA.KEY_COLUMN_USAGE CU
-			on C.CONSTRAINT_NAME = CU.CONSTRAINT_NAME
-			inner join (
-				select		i1.TABLE_NAME,
-							i2.COLUMN_NAME
-				from		INFORMATION_SCHEMA.TABLE_CONSTRAINTS i1
-							inner join
-							INFORMATION_SCHEMA.KEY_COLUMN_USAGE i2
-							on i1.CONSTRAINT_NAME = i2.CONSTRAINT_NAME
-				where		i1.CONSTRAINT_TYPE = 'PRIMARY KEY'
-			) PT
-			on PT.TABLE_NAME = PK.TABLE_NAME
-
-
--- ignore relations to self (parent-child)
-select		info = 'ignore these self references',
-			fk_pk.*
-from		@fk_pk fk_pk
-where		fk_pk.PK_schema = fk_pk.FK_schema
+where		PK.CONSTRAINT_TYPE = 'PRIMARY KEY'
 			and
-			fk_pk.PK_table = fk_pk.FK_table
-
-delete		fk_pk
-from		@fk_pk fk_pk
-where		fk_pk.PK_schema = fk_pk.FK_schema
-			and
-			fk_pk.PK_table = fk_pk.FK_table
-
--- ignore possible composite PK
-select		info = 'ignore the composite PK',
-			fk_pk.*
-from		@fk_pk fk_pk
-where		exists(
-				select		1
-				from		@fk_pk fk_pk_exists
-				where		fk_pk_exists.PK_schema = fk_pk.PK_schema
-							and
-							fk_pk_exists.PK_table = fk_pk.PK_table
-							and
-							fk_pk_exists.PK_column != fk_pk.PK_column
-			)
-
-delete		fk_pk
-from		@fk_pk fk_pk
-where		exists(
-				select		1
-				from		@fk_pk fk_pk_exists
-				where		fk_pk_exists.PK_schema = fk_pk.PK_schema
-							and
-							fk_pk_exists.PK_table = fk_pk.PK_table
-							and
-							fk_pk_exists.PK_column != fk_pk.PK_column
+			-- ignore self-references
+			not (
+				PK.TABLE_SCHEMA = FK.TABLE_SCHEMA
+				and
+				PK.TABLE_NAME = FK.TABLE_NAME
 			)
 
 ;
