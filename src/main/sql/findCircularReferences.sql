@@ -1,6 +1,6 @@
 -- variables for the path output
-declare	@delimPathList nvarchar(max) = ' -> ',
-		@delimPathDot nvarchar(max) = '.'
+declare	@delimList nvarchar(max) = ' > ',
+		@delimDot nvarchar(max) = '.'
 
 /* Part 1: read all fk-pk relation
 does not perform well in SQL Server with a CTE, thus using a temp table */
@@ -56,7 +56,7 @@ with relation(
 				fk_pk.PK_table,
 				fk_pk.FK_schema,
 				fk_pk.FK_table,
-				cast(fk_pk.PK_schema as nvarchar(max)) + @delimPathDot + fk_pk.PK_table + @delimPathList + fk_pk.FK_schema + @delimPathDot +  fk_pk.FK_table path
+				cast(fk_pk.PK_schema as nvarchar(max)) + @delimDot + fk_pk.PK_table + @delimList + fk_pk.FK_schema + @delimDot +  fk_pk.FK_table path
 	from		#fk_pk fk_pk
 	where		exists(
 					select		1
@@ -84,7 +84,7 @@ with relation(
 				fk_pk_child.FK_table,
 				/* Part 5: Display result nicely
 				compose a path like: A -> B -> C */
-				relation.path + @delimPathList + fk_pk_child.FK_schema + @delimPathDot + fk_pk_child.FK_table path
+				relation.path + @delimList + fk_pk_child.FK_schema + @delimDot + fk_pk_child.FK_table path
 	from		#fk_pk fk_pk_child
 				inner join
 				relation
@@ -94,10 +94,8 @@ with relation(
 )
 
 /* Part 4: Identify problematic circles */
-select		relation.sourceSchema,
-			relation.sourceTable,
-			relation.FK_schema targetSchema,
-			relation.FK_table targetTable,
+select		relation.sourceSchema + @delimDot + relation.sourceTable source,
+			relation.FK_schema + @delimDot + relation.FK_table target,
 			relation.path
 from		relation
 where		exists(
