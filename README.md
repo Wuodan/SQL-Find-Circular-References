@@ -147,7 +147,7 @@ with relation( [columns] ) as (
 )
 ```
 ## Part 4: Identify problematic circles
-From the relations in part 3, find those that have the same start- and end-points.
+From the relations in part 3, find start-end combinations that occur more then once.
 ````
 select      [columns]
 from        relation
