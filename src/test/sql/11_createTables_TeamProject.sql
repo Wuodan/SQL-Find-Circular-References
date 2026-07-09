@@ -9,8 +9,8 @@ if object_id('Task', 'U') is not null
 	drop table Task
 if object_id('Project', 'U') is not null
 	drop table Project
-if object_id('Role', 'U') is not null
-	drop table Role
+if object_id('ProjectRole', 'U') is not null
+	drop table ProjectRole
 if object_id('Users', 'U') is not null
 	drop table Users
 if object_id('TaskType', 'U') is not null
