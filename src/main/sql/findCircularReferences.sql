@@ -25,11 +25,21 @@ select		distinct
 from		INFORMATION_SCHEMA.TABLE_CONSTRAINTS PK
 			inner join
 			INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS C
-			on C.UNIQUE_CONSTRAINT_NAME = PK.CONSTRAINT_NAME
+			on C.UNIQUE_CONSTRAINT_CATALOG = PK.CONSTRAINT_CATALOG
+				and
+				C.UNIQUE_CONSTRAINT_SCHEMA = PK.CONSTRAINT_SCHEMA
+				and
+				C.UNIQUE_CONSTRAINT_NAME = PK.CONSTRAINT_NAME
 			inner join
 			INFORMATION_SCHEMA.TABLE_CONSTRAINTS FK
-			on C.CONSTRAINT_NAME = FK.CONSTRAINT_NAME
+			on C.CONSTRAINT_CATALOG = FK.CONSTRAINT_CATALOG
+				and
+				C.CONSTRAINT_SCHEMA = FK.CONSTRAINT_SCHEMA
+				and
+				C.CONSTRAINT_NAME = FK.CONSTRAINT_NAME
 where		PK.CONSTRAINT_TYPE = 'PRIMARY KEY'
+			and
+			FK.CONSTRAINT_TYPE = 'FOREIGN KEY'
 			and
 			-- ignore self-references
 			not (
@@ -46,7 +56,8 @@ with relation(
 	PK_table,
 	FK_schema,
 	FK_table,
-	path
+	path,
+	visitedTables
 ) as (
 	/* Part 2: Find PKs that are referenced more then once (reduces workload for next step) */
 	-- anchor: more then one fk reference these pk tables
@@ -56,7 +67,8 @@ with relation(
 				fk_pk.PK_table,
 				fk_pk.FK_schema,
 				fk_pk.FK_table,
-				cast(fk_pk.PK_schema as nvarchar(max)) + @delimDot + fk_pk.PK_table + @delimList + fk_pk.FK_schema + @delimDot +  fk_pk.FK_table path
+				cast(fk_pk.PK_schema as nvarchar(max)) + @delimDot + fk_pk.PK_table + @delimList + fk_pk.FK_schema + @delimDot +  fk_pk.FK_table path,
+				cast('|' + fk_pk.PK_schema + @delimDot + fk_pk.PK_table + '|' + fk_pk.FK_schema + @delimDot + fk_pk.FK_table + '|' as nvarchar(max)) visitedTables
 	from		#fk_pk fk_pk
 	where		exists(
 					select		1
@@ -84,13 +96,15 @@ with relation(
 				fk_pk_child.FK_table,
 				/* Part 5: Display result nicely
 				compose a path like: A -> B -> C */
-				relation.path + @delimList + fk_pk_child.FK_schema + @delimDot + fk_pk_child.FK_table path
+				relation.path + @delimList + fk_pk_child.FK_schema + @delimDot + fk_pk_child.FK_table path,
+				relation.visitedTables + fk_pk_child.FK_schema + @delimDot + fk_pk_child.FK_table + '|'
 	from		#fk_pk fk_pk_child
 				inner join
 				relation
 				on	relation.FK_schema = fk_pk_child.PK_schema
 					and
 					relation.FK_table = fk_pk_child.PK_table
+	where		relation.visitedTables not like '%|' + fk_pk_child.FK_schema + @delimDot + fk_pk_child.FK_table + '|%'
 )
 
 /* Part 4: Identify problematic circles */
