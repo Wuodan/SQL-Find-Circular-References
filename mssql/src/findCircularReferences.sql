@@ -59,8 +59,8 @@ with relation(
 	path,
 	visitedTables
 ) as (
-	/* Part 2: Find PKs that are referenced more then once (reduces workload for next step) */
-	-- anchor: more then one fk reference these pk tables
+	/* Part 2: Find PKs that are referenced more than once (reduces workload for next step) */
+	-- anchor: more than one fk reference these pk tables
 	select		fk_pk.PK_schema sourceSchema,
 				fk_pk.PK_table sourceTable,
 				fk_pk.PK_schema,

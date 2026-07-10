@@ -1,0 +1,59 @@
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}"
+    ports:
+      - "1433:1433"
+
+  demo-init:
+    image: mcr.microsoft.com/mssql-tools
+    depends_on:
+      - db
+    environment:
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}"
+    volumes:
+      - ..:/workspace:ro
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        set -euo pipefail
+        sqlcmd_bin=/opt/mssql-tools/bin/sqlcmd
+        until "$$sqlcmd_bin" -C -S db -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1" >/dev/null 2>&1; do
+          sleep 2
+        done
+        "$$sqlcmd_bin" -C -S db -U sa -P "$$MSSQL_SA_PASSWORD" -Q "
+        IF DB_ID(N'sql_circular_references') IS NOT NULL
+        BEGIN
+            ALTER DATABASE sql_circular_references SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+            DROP DATABASE sql_circular_references;
+        END"
+        "$$sqlcmd_bin" -b -C -S db -U sa -P "$$MSSQL_SA_PASSWORD" -i /workspace/mssql/test/00_createDatabase.sql
+        "$$sqlcmd_bin" -b -C -S db -U sa -P "$$MSSQL_SA_PASSWORD" -i /workspace/mssql/test/10_createTables_HouseholdBill.sql
+        "$$sqlcmd_bin" -b -C -S db -U sa -P "$$MSSQL_SA_PASSWORD" -i /workspace/mssql/test/11_createTables_TeamProject.sql
+        echo "Demo database sql_circular_references is ready."
+
+  demo-run:
+    image: mcr.microsoft.com/mssql-tools
+    depends_on:
+      - db
+      - demo-init
+    environment:
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}"
+    volumes:
+      - ..:/workspace:ro
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        set -euo pipefail
+        sqlcmd_bin=/opt/mssql-tools/bin/sqlcmd
+        until "$$sqlcmd_bin" -C -S db -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1" >/dev/null 2>&1; do
+          sleep 2
+        done
+        until "$$sqlcmd_bin" -b -C -S db -U sa -P "$$MSSQL_SA_PASSWORD" -d sql_circular_references -Q "IF EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'ProjectAssignment') SELECT 1 ELSE RAISERROR ('demo schema not ready', 16, 1)" >/dev/null 2>&1; do
+          sleep 2
+        done
+        "$$sqlcmd_bin" -W -s "|" -b -C -S db -U sa -P "$$MSSQL_SA_PASSWORD" -d sql_circular_references -i /workspace/mssql/src/findCircularReferences.sql
