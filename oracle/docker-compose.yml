@@ -1,0 +1,59 @@
+services:
+  db:
+    image: gvenzl/oracle-free:23-slim-faststart
+    environment:
+      ORACLE_PASSWORD: "${ORACLE_PASSWORD:-oracle}"
+    ports:
+      - "1521:1521"
+
+  demo-init:
+    image: gvenzl/oracle-free:23-slim-faststart
+    depends_on:
+      - db
+    environment:
+      ORACLE_PASSWORD: "${ORACLE_PASSWORD:-oracle}"
+    volumes:
+      - ..:/workspace:ro
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        set -euo pipefail
+        until printf '%s\n' \
+          'whenever oserror exit failure' \
+          'whenever sqlerror exit sql.sqlcode' \
+          'select 1 from dual;' \
+          'exit' \
+          | sqlplus -s system/"$$ORACLE_PASSWORD"@//db/FREEPDB1 >/dev/null 2>&1; do
+          sleep 5
+        done
+        sqlplus -s system/"$$ORACLE_PASSWORD"@//db/FREEPDB1 @/workspace/oracle/test/00_prepareSchema.sql >/dev/null
+        sqlplus -s CIRCREF/CIRCREF@//db/FREEPDB1 @/workspace/oracle/test/10_createTables_HouseholdBill.sql >/dev/null
+        sqlplus -s CIRCREF/CIRCREF@//db/FREEPDB1 @/workspace/oracle/test/11_createTables_TeamProject.sql >/dev/null
+        echo "Demo schema CIRCREF is ready."
+
+  demo-run:
+    image: gvenzl/oracle-free:23-slim-faststart
+    depends_on:
+      - db
+    environment:
+      ORACLE_PASSWORD: "${ORACLE_PASSWORD:-oracle}"
+    volumes:
+      - ..:/workspace:ro
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        set -euo pipefail
+        until printf '%s\n' \
+          'whenever oserror exit failure' \
+          'whenever sqlerror exit sql.sqlcode' \
+          'select 1 from dual;' \
+          'exit' \
+          | sqlplus -s system/"$$ORACLE_PASSWORD"@//db/FREEPDB1 >/dev/null 2>&1; do
+          sleep 5
+        done
+        sqlplus -s system/"$$ORACLE_PASSWORD"@//db/FREEPDB1 @/workspace/oracle/test/00_prepareSchema.sql >/dev/null
+        sqlplus -s CIRCREF/CIRCREF@//db/FREEPDB1 @/workspace/oracle/test/10_createTables_HouseholdBill.sql >/dev/null
+        sqlplus -s CIRCREF/CIRCREF@//db/FREEPDB1 @/workspace/oracle/test/11_createTables_TeamProject.sql >/dev/null
+        sqlplus -s CIRCREF/CIRCREF@//db/FREEPDB1 @/workspace/oracle/src/findCircularReferences.sql
