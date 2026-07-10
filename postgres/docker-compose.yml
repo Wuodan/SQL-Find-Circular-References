@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
+      POSTGRES_DB: postgres
+
+  demo-init:
+    image: postgres:16
+    depends_on:
+      - db
+    environment:
+      PGPASSWORD: "${POSTGRES_PASSWORD:-postgres}"
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+    volumes:
+      - ..:/workspace:ro
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        set -euo pipefail
+        until pg_isready -h db -U "$$POSTGRES_USER" >/dev/null 2>&1; do
+          sleep 2
+        done
+        psql -v ON_ERROR_STOP=1 -h db -U "$$POSTGRES_USER" -d postgres -f /workspace/postgres/test/00_createDatabase.sql
+        psql -v ON_ERROR_STOP=1 -h db -U "$$POSTGRES_USER" -d sql_circular_references -f /workspace/postgres/test/10_createTables_HouseholdBill.sql
+        psql -v ON_ERROR_STOP=1 -h db -U "$$POSTGRES_USER" -d sql_circular_references -f /workspace/postgres/test/11_createTables_TeamProject.sql
+        echo "Demo database sql_circular_references is ready."
+
+  demo-run:
+    image: postgres:16
+    depends_on:
+      - db
+      - demo-init
+    environment:
+      PGPASSWORD: "${POSTGRES_PASSWORD:-postgres}"
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+    volumes:
+      - ..:/workspace:ro
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        set -euo pipefail
+        until pg_isready -h db -U "$$POSTGRES_USER" >/dev/null 2>&1; do
+          sleep 2
+        done
+        until psql -v ON_ERROR_STOP=1 -h db -U "$$POSTGRES_USER" -d sql_circular_references -c "do \$\$ begin if not exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'projectassignment') then raise exception 'demo schema not ready'; end if; end \$\$;" >/dev/null 2>&1; do
+          sleep 2
+        done
+        psql -v ON_ERROR_STOP=1 -h db -U "$$POSTGRES_USER" -d sql_circular_references -f /workspace/postgres/src/findCircularReferences.sql
