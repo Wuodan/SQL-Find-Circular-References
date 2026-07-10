@@ -1,0 +1,50 @@
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-mysql}"
+    ports:
+      - "3306:3306"
+
+  demo-init:
+    image: mysql:8.4
+    depends_on:
+      - db
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-mysql}"
+    volumes:
+      - ..:/workspace:ro
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        set -euo pipefail
+        until mysqladmin ping -h db -u root -p"$$MYSQL_ROOT_PASSWORD" --silent >/dev/null 2>&1; do
+          sleep 2
+        done
+        mysql -h db -u root -p"$$MYSQL_ROOT_PASSWORD" < /workspace/mysql/test/00_createDatabase.sql
+        mysql -h db -u root -p"$$MYSQL_ROOT_PASSWORD" sql_circular_references < /workspace/mysql/test/10_createTables_HouseholdBill.sql
+        mysql -h db -u root -p"$$MYSQL_ROOT_PASSWORD" sql_circular_references < /workspace/mysql/test/11_createTables_TeamProject.sql
+        echo "Demo database sql_circular_references is ready."
+
+  demo-run:
+    image: mysql:8.4
+    depends_on:
+      - db
+      - demo-init
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-mysql}"
+    volumes:
+      - ..:/workspace:ro
+    entrypoint:
+      - /bin/bash
+      - -lc
+      - |
+        set -euo pipefail
+        until mysqladmin ping -h db -u root -p"$$MYSQL_ROOT_PASSWORD" --silent >/dev/null 2>&1; do
+          sleep 2
+        done
+        until mysql -N -B -h db -u root -p"$$MYSQL_ROOT_PASSWORD" sql_circular_references -e "select 1 from information_schema.tables where table_schema = 'sql_circular_references' and table_name = 'projectassignment';" | grep -q 1; do
+          sleep 2
+        done
+        mysql -t -h db -u root -p"$$MYSQL_ROOT_PASSWORD" sql_circular_references < /workspace/mysql/src/findCircularReferences.sql
