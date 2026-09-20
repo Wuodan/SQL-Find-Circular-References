@@ -1,13 +1,13 @@
 services:
   db:
-    image: postgres:16
+    image: postgres:18
     environment:
       POSTGRES_USER: "${POSTGRES_USER:-postgres}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
       POSTGRES_DB: postgres
 
   demo-init:
-    image: postgres:16
+    image: postgres:18
     depends_on:
       - db
     environment:
@@ -29,7 +29,7 @@ services:
         echo "Demo database sql_circular_references is ready."
 
   demo-run:
-    image: postgres:16
+    image: postgres:18
     depends_on:
       - db
       - demo-init
